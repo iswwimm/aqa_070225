@@ -6,7 +6,7 @@ pipeline {
         DB_NAME = 'testdb'
         DB_USER = 'testuser'
         DB_PASS = 'testpass'
-        DB_CONTAINER = 'lessons_29_30-db-1'  // назва контейнера з базою
+        DB_CONTAINER = 'lessons_29_30-db-1'
     }
 
     stages {
