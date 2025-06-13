@@ -6,12 +6,13 @@ pipeline {
         DB_NAME = 'testdb'
         DB_USER = 'testuser'
         DB_PASS = 'testpass'
+        DB_CONTAINER = 'lessons_29_30-db-1'  // назва контейнера з базою
     }
 
     stages {
         stage('Clone repo') {
             steps {
-                git 'https://github.com/iswwimm/aqa_070225.git'
+                git url: 'https://github.com/iswwimm/aqa_070225.git', branch: 'homework_29_30'
             }
         }
 
@@ -21,10 +22,33 @@ pipeline {
             }
         }
 
-        stage('Start containers') {
+        stage('Start containers and wait for DB') {
             steps {
                 sh 'docker-compose up -d'
-                sh 'sleep 15' // wait for DB to be ready
+
+                script {
+                    def timeout = 60
+                    def sleepTime = 3
+                    def isReady = false
+                    while (timeout > 0) {
+                        def result = sh (
+                            script: "docker exec ${env.DB_CONTAINER} pg_isready -U ${env.DB_USER}",
+                            returnStatus: true
+                        )
+                        if (result == 0) {
+                            echo "Database is ready!"
+                            isReady = true
+                            break
+                        } else {
+                            echo "Waiting for DB to be ready..."
+                            sleep sleepTime
+                            timeout -= sleepTime
+                        }
+                    }
+                    if (!isReady) {
+                        error "Database did not become ready in time."
+                    }
+                }
             }
         }
 
@@ -36,7 +60,7 @@ pipeline {
 
         stage('Publish Results') {
             steps {
-                junit 'test-results/*.xml' // якщо є JUnit, інакше можна лог в консоль
+                junit 'test-results/*.xml'
             }
         }
     }
@@ -44,16 +68,16 @@ pipeline {
     post {
         always {
             sh 'docker-compose down'
+            echo "Pipeline finished"
         }
         success {
-            mail to: 'online@ithillel.ua',
-                 subject: "SUCCESS: Build ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: "Good news! Build #${env.BUILD_NUMBER} succeeded."
+            echo "Tests passed successfully!"
         }
         failure {
-            mail to: 'online@ithillel.ua',
-                 subject: "FAILURE: Build ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: "Something went wrong with build #${env.BUILD_NUMBER}."
+            echo "Tests failed!"
+        }
+        unstable {
+            echo "Pipeline is unstable (some tests failed or warnings)"
         }
     }
 }
